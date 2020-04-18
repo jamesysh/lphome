@@ -1,0 +1,193 @@
+#ifndef __PELLET_SOLVER_H__
+#define __PELLET_SOLVER_H__
+#include "particle_data.h"
+#include "material_lib.h"
+#include "initializer.h"
+#include <map>
+typedef struct quadrant_data
+{   
+    
+    p4est_locidx_t      lpend;
+//    p4est_locidx_t ghostneighbourid[300];
+  /** counts of local particles remaining on this quadrant and recieved ones */
+  p4est_locidx_t      premain, preceive;
+  int quadrantid;
+}
+quadrant_data_t;
+
+typedef struct integral
+{
+    p4est_locidx_t id;
+    double leftintegral;
+    double rightintegral;
+    double drifta; 
+    }
+    integral_t;
+
+typedef enum march_direction
+{
+    LEFT,
+    RIGHT
+
+}
+march_direction_t;
+
+class PelletSolver{
+    
+    public:
+    
+        PelletSolver(Initializer* init,Global_Data *gdata);
+        ~PelletSolver();
+        
+        void heatingModel(double dt);
+        void build_quadtree();
+        void prerun();
+        void resetQuadrantData();
+        void presearch2d(); 
+        void packParticles();
+        void postsearch2d();
+        void regroupParticles2d();
+        
+        void communicateParticles();
+  
+        void partitionParticles2d();
+        void adaptQuadtree();
+        void destoryQuadtree();
+  
+        void swapXYZCoordinate();
+        void computeDensityIntegral();
+        void split_by_coord ( sc_array_t * in,
+                sc_array_t * out[2], pa_mode_t mode, int component,
+                const double lxyz[3], const double dxyz[3]);
+        
+        int countNumberinRange(sc_array_t *view, int n, double x, double y); 
+        void packParticles_phase2();
+        void communicateParticles_phase2();
+
+        void writeIntegralValue();
+        
+        void computeLongitudinalLength();
+        
+        void generateComputationNode();
+        
+        void reorderComputationNode();
+        void regroupComputationNodeWithStates(sc_array_t *nodes);
+        void regroupComputationNode(sc_array_t *nodes);
+        void getNodeLocalSpacing(sc_array_t *nodes, double* ls);
+        void initComputationNode();
+       
+        int marchComputationNode(sc_array_t* nodes, march_direction_t dir );
+        void computeNodeStates();
+        
+        void densityIntegralForNode();
+        
+        void linearInterpolation(int startindex, int endindex, pdata_t *pad);
+
+        void computeDensityIntegral_interpolation();
+        void computeHeatDeposition( double dt);
+        
+        void computeDensityIntegral1D();
+        
+       
+        void updateStatesByLorentzForce(double dt);
+        
+        void updateStatesByLorentzForce(double dt,const double invelocity, const double inPressure, const double inVolume, const double inSoundspeed,  double* outvelocity, double* outpressure);
+        
+        void updateStatesByLorentzForce(double dt, const double invelocityv, const double invelocityw, const double inpressure, const double involume, const double insoundspeed, 
+            double* outvelocityv, double* outvelocityw, double* outpressure);
+        
+        void gradBDrift( double dt);
+        double neon_radiation_data(int i, int j);
+        
+        double neon_radiation_power_density(double rho, double T);
+        void neonRadiationCooling(double dt);
+
+        void setPelletMaterial(int i);
+
+
+        void searchComputationNode(sc_array_t *nodes);
+
+       
+        bool ifInsidePellet(double x, double y, double z);
+
+        bool ifCloseToPellet(double dx,double x, double y, double z);
+
+        void computeDriftAcceleration();
+        void labelLayer();
+	void readPelletFile();
+        
+        double driftacceleration;
+        
+        double pelletradius;
+    	string pelletfile; 
+	sc_array_t *pelletlist;
+
+        int heatingmodel; 
+        Material *material;
+        int materialnumber;
+        int elem_particle_box;
+        int elem_particle_cell;
+        int computationnodenum;
+        double longitude_min;
+        double longitude_max;
+        sc_array_t *prebuf;
+        sc_array_t *prebuf_integral;
+        p4est_t *p4est_heating;
+        p4est_connectivity_t *conn;
+        sc_array_t *particle_data_copy; //used for pellet problem;
+        sc_array_t *nodelist;
+        sc_array_t *nodelist_buf;
+        sc_array_t *nodelist_left;
+        sc_array_t *nodelist_right;
+        sc_array_t *node_offset;
+        Global_Data *gdata;
+           
+        sc_array_t *ilh[2],*jlh[2],*klh[2];
+        
+    void computeBoundaryCondition(Global_Data *g,double dt, double dx); 
+	double qsum_bc;
+	double vol_bc;
+	double pres_bc;
+	double ss_bc;
+	double u_bc;       
+	double r_bc;
+       
+
+        
+        double mu ; 
+        double mass ;
+        double Z ;
+        double I ;
+        double sublimationenergy ;
+        double teinf;
+        double neinf;
+        
+        double heatK = 1.602e-18;
+        double masse = 9.109e-28;
+        double one_plus_Zstar;
+        double magneticfield;
+    
+    };
+
+
+typedef struct computation_node{
+    
+    double xyz[3];
+    double sphdensity;
+    double density;
+    double pressure;
+    double leftintegral;
+    double rightintegral;
+    double localspacing;
+    int mpirank;
+    int id;
+} computation_node_t;
+
+typedef struct pellet_info{
+	double xyz[333];
+	double innerradius;
+	double outerradius;
+} pellet_info_t;
+
+
+#endif
